@@ -159,7 +159,7 @@ from keras.utils import np_utils, generic_utils
 
 # In[ ]:
 
-activate = LeakyReLU(alpha=0.3)
+activate = LeakyReLU(alpha=0.4)
 model = Sequential()
 
 model.add(Conv3D(32, kernel_size=(3, 3, 3),input_shape=(img_rows, img_cols, patch_size, 1), activation='relu'))
@@ -213,3 +213,9 @@ score = model.evaluate(X_val_new, y_val_new, batch_size=batch_size)
 print('Test score:', score[0])
 print('Test accuracy:', score[1])
 
+from keras import backend as K
+import tensorflow as tf
+print(model.output.op.name)
+K.set_learning_phase(0)
+saver = tf.train.Saver()
+saver.save(K.get_session(), '/home/deo/thesis/base3DCNN_model.ckpt')
