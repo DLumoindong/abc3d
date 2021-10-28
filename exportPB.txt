@@ -1,0 +1,8 @@
+python /home/deo/anaconda3/envs/thesis/lib/python3.6/site-packages/tensorflow/python/tools/freeze_graph.py \
+--input_meta_graph=/home/deo/thesis/base3DCNN_model.ckpt.meta \ 
+--input_checkpoint=/home/deo/thesis/base3DCNN_model.ckpt \
+--output_graph=/home/deo/thesis/base3DCNN_model.pb \
+--output_node_names="dense_2/Softmax" \
+--input_binary=true
+
+run this on cmd, output node name printed on pycharm
