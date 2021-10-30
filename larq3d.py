@@ -20,11 +20,14 @@ import tensorflow as tf
 
 from keras.preprocessing.image import ImageDataGenerator
 from keras.models import Sequential
-from keras.layers import (Activation, Conv3D, Dense, Dropout, Flatten,
+from keras.layers import (Activation, Dense, Dropout, Flatten,
                           MaxPooling3D, BatchNormalization, LeakyReLU)
 from keras.losses import categorical_crossentropy
 from keras.optimizers import SGD, RMSprop, Adam
 from keras.utils import np_utils, generic_utils
+
+import larq as lq
+from lq.layers import QuantConv3D
 
 mirrored_strategy = tf.contrib.distribute.MirroredStrategy()
 
@@ -119,21 +122,21 @@ def base3dcnn(leaky_relu_alpha, learn_rate, rows, cols, depth, channels, classes
     model.add(Conv3D(32, kernel_size=(3, 3, 3), input_shape=(rows, cols, depth, 1), activation='relu'))
 
     model.add(Activation(activate))
-    model.add(Conv3D(32, padding="same", kernel_size=(3, 3, 3)))
+    model.add(QuantConv3D(32, padding="same", kernel_size=(3, 3, 3)))
     model.add(Activation(activate))
     model.add(MaxPooling3D(pool_size=(3, 3, 3), padding="same"))
     model.add(Dropout(0.25))
 
-    model.add(Conv3D(64, padding="same", kernel_size=(3, 3, 3)))
+    model.add(QuantConv3D(64, padding="same", kernel_size=(3, 3, 3)))
     model.add(Activation(activate))
-    model.add(Conv3D(64, padding="same", kernel_size=(3, 3, 3)))
+    model.add(QuantConv3D(64, padding="same", kernel_size=(3, 3, 3)))
     model.add(Activation(activate))
     model.add(MaxPooling3D(pool_size=(3, 3, 3), padding="same"))
     model.add(Dropout(0.25))
 
-    model.add(Conv3D(64, padding="same", kernel_size=(3, 3, 3)))
+    model.add(QuantConv3D(64, padding="same", kernel_size=(3, 3, 3)))
     model.add(Activation(activate))
-    model.add(Conv3D(64, padding="same", kernel_size=(3, 3, 3)))
+    model.add(QuantConv3D(64, padding="same", kernel_size=(3, 3, 3)))
     model.add(Activation(activate))
     model.add(MaxPooling3D(pool_size=(3, 3, 3), padding="same"))
     model.add(Dropout(0.25))

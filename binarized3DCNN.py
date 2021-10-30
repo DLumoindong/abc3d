@@ -17,16 +17,14 @@ from tqdm import tqdm
 import os
 from keras import backend as K
 import tensorflow as tf
+import math
+from tensorflow.python.training import moving_averages
+from tensorflow.python.ops import control_flow_ops
+from tensorflow.python.framework import ops
 
 from keras.preprocessing.image import ImageDataGenerator
-from keras.models import Sequential
-from keras.layers import (Activation, Conv3D, Dense, Dropout, Flatten,
-                          MaxPooling3D, BatchNormalization, LeakyReLU)
-from keras.losses import categorical_crossentropy
-from keras.optimizers import SGD, RMSprop, Adam
 from keras.utils import np_utils, generic_utils
-
-mirrored_strategy = tf.contrib.distribute.MirroredStrategy()
+from binarizedModel import *
 
 # inputs for data prep
 img_rows, img_cols, img_depth, img_channels = 96, 96, 25, 1
@@ -47,7 +45,7 @@ def data_prep(rows, cols, depth, channels, path):
             frames = []
             cap = cv2.VideoCapture(vid)
             fps = cap.get(5)
-            #print("Frames per second using video.get(cv2.cv.CV_CAP_PROP_FPS): {}".format(fps))
+            print("Frames per second using video.get(cv2.cv.CV_CAP_PROP_FPS): {}".format(fps))
 
             for k in range(depth):
                 ret, frame = cap.read()
@@ -64,14 +62,14 @@ def data_prep(rows, cols, depth, channels, path):
 
             input = np.array(frames)
 
-            #print(input.shape)
+            # print(input.shape)
             ipt = np.rollaxis(np.rollaxis(input, 2, 0), 2, 0)
-            #print(ipt.shape)
+            # print(ipt.shape)
 
             X_tr.append(ipt)
             X_tr_array = np.array(X_tr)  # convert the frames read into array
             num_samples = len(X_tr_array)
-            #print(num_samples)
+            print(num_samples)
             labels.append(categories.index(category))
 
     train_data = [X_tr_array, labels]
@@ -112,59 +110,28 @@ def data_prep(rows, cols, depth, channels, path):
     return X_train_new, X_val_new, y_train_new, y_val_new, nb_classes
 
 
-def base3dcnn(leaky_relu_alpha, learn_rate, rows, cols, depth, channels, classes):
-    activate = LeakyReLU(alpha=0.4)
-    model = Sequential()
-
-    model.add(Conv3D(32, kernel_size=(3, 3, 3), input_shape=(rows, cols, depth, 1), activation='relu'))
-
-    model.add(Activation(activate))
-    model.add(Conv3D(32, padding="same", kernel_size=(3, 3, 3)))
-    model.add(Activation(activate))
-    model.add(MaxPooling3D(pool_size=(3, 3, 3), padding="same"))
-    model.add(Dropout(0.25))
-
-    model.add(Conv3D(64, padding="same", kernel_size=(3, 3, 3)))
-    model.add(Activation(activate))
-    model.add(Conv3D(64, padding="same", kernel_size=(3, 3, 3)))
-    model.add(Activation(activate))
-    model.add(MaxPooling3D(pool_size=(3, 3, 3), padding="same"))
-    model.add(Dropout(0.25))
-
-    model.add(Conv3D(64, padding="same", kernel_size=(3, 3, 3)))
-    model.add(Activation(activate))
-    model.add(Conv3D(64, padding="same", kernel_size=(3, 3, 3)))
-    model.add(Activation(activate))
-    model.add(MaxPooling3D(pool_size=(3, 3, 3), padding="same"))
-    model.add(Dropout(0.25))
-
-    model.add(Flatten())
-    model.add(Dense(512, activation=activate))
-    model.add(BatchNormalization())
-    model.add(Dropout(0.5))
-    model.add(Dense(classes, activation='softmax'))
-
-    model.compile(loss=categorical_crossentropy,
-                  optimizer=Adam(lr=0.0001),
-                  metrics=['accuracy'])
-    return model
-
-
-def trainbase(rows, cols, depth, channels, leaky_relu_alpha, learn_rate, batch_size, num_epochs, trainx, trainy, valx, valy, classes):
-    model = base3dcnn(leaky_relu_alpha, learn_rate, rows, cols, depth, channels, classes)
-
-    hist = model.fit(trainx, trainy, validation_data=(valx, valy),
-                     batch_size=batch_size, epochs=num_epochs, shuffle=True)
-
-    score = model.evaluate(valx, valy, batch_size=batch_size)
-    print('Test score:', score[0])
-    print('Test accuracy:', score[1])
-
-    print(model.output.op.name)
-    K.set_learning_phase(0)
-    saver = tf.train.Saver()
-    saver.save(K.get_session(), '/home/deo/kuliah/thesis/base3DCNN_model.ckpt')
-
+testModel = Sequential([
+    Binarized3D(32, 3, 3, 3, 1, 1, 1, padding='VALID', bias=True, reuse=False, name='B3D_1'),
+    BatchNormalization(),
+    HardTanh(),
+    Binarized3D(32, 3, 3, 3, 1, 1, 1, padding='SAME', bias=True, reuse=False, name='B3D_1'),
+    SpatialTemporalMaxPooling(3, 3, 3, 1, 1, 1),
+    BatchNormalization(),
+    HardTanh(),
+    Binarized3D(64, 3, 3, 3, 1, 1, 1, padding='SAME', bias=True, reuse=False, name='B3D_1'),
+    SpatialTemporalMaxPooling(3, 3, 3, 1, 1, 1),
+    BatchNormalization(),
+    HardTanh(),
+    Binarized3D(64, 3, 3, 3, 1, 1, 1, padding='SAME', bias=True, reuse=False, name='B3D_1'),
+    SpatialTemporalMaxPooling(3, 3, 3, 1, 1, 1),
+    BatchNormalization(),
+    HardTanh(),
+    BinarizedAffine(512, bias=False),
+    BatchNormalization(),
+    HardTanh(),
+    BinarizedAffine(10),
+    BatchNormalization()
+])
 
 x_train, x_val, y_train, y_val, nb_classes = data_prep(img_rows, img_cols, img_depth, img_channels, fpath)
 print("Training data shape: ", x_train.shape)
@@ -172,4 +139,9 @@ print("Validation data_shape: ", x_val.shape)
 print("\n====================================================")
 print("Training Started")
 print("====================================================\n")
-trainbase(img_rows, img_cols, img_depth, img_channels, 0.4, 0.0001, batch_size, 20, x_train, y_train, x_val, y_val, 10)
+
+train(testModel, x_train,
+      batch_size=8,
+      checkpoint_dir='/chkpt/',
+      log_dir='/logs/',
+      num_epochs=10)
