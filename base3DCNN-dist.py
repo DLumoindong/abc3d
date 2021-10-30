@@ -17,6 +17,13 @@ from tqdm import tqdm
 import os
 from keras import backend as K
 import tensorflow as tf
+#from spark_tensorflow_distributor import MirroredStrategyRunner
+from pyspark import SparkContext, SparkConf
+conf = SparkConf().setAppName('base3dcnn-dist').setMaster('spark://master:7077')
+sc = SparkContext.getOrCreate(conf=conf)
+
+#disable GPU due to RAPIDS error
+sess = tf.Session(config=tf.ConfigProto(device_count={'GPU': 0}))
 
 from keras.preprocessing.image import ImageDataGenerator
 from keras.models import Sequential
@@ -47,7 +54,7 @@ def data_prep(rows, cols, depth, channels, path):
             frames = []
             cap = cv2.VideoCapture(vid)
             fps = cap.get(5)
-            #print("Frames per second using video.get(cv2.cv.CV_CAP_PROP_FPS): {}".format(fps))
+            print("Frames per second using video.get(cv2.cv.CV_CAP_PROP_FPS): {}".format(fps))
 
             for k in range(depth):
                 ret, frame = cap.read()
@@ -64,14 +71,14 @@ def data_prep(rows, cols, depth, channels, path):
 
             input = np.array(frames)
 
-            #print(input.shape)
+            print(input.shape)
             ipt = np.rollaxis(np.rollaxis(input, 2, 0), 2, 0)
-            #print(ipt.shape)
+            print(ipt.shape)
 
             X_tr.append(ipt)
             X_tr_array = np.array(X_tr)  # convert the frames read into array
             num_samples = len(X_tr_array)
-            #print(num_samples)
+            print(num_samples)
             labels.append(categories.index(category))
 
     train_data = [X_tr_array, labels]
@@ -167,9 +174,10 @@ def trainbase(rows, cols, depth, channels, leaky_relu_alpha, learn_rate, batch_s
 
 
 x_train, x_val, y_train, y_val, nb_classes = data_prep(img_rows, img_cols, img_depth, img_channels, fpath)
-print("Training data shape: ", x_train.shape)
-print("Validation data_shape: ", x_val.shape)
-print("\n====================================================")
-print("Training Started")
-print("====================================================\n")
-trainbase(img_rows, img_cols, img_depth, img_channels, 0.4, 0.0001, batch_size, 20, x_train, y_train, x_val, y_val, 10)
+print(x_train.shape)
+print(x_val.shape)
+print(y_train.shape)
+print(y_val.shape)
+
+with sess:
+    sess.run(trainbase(img_rows, img_cols, img_depth, img_channels, 0.4, 0.0001, batch_size, 20, x_train, y_train, x_val, y_val, 10))
